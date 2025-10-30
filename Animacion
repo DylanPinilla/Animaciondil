@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Escena interactiva VR/PC</title>
+
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+
+    <script>
+      AFRAME.registerComponent("vr-controls", {
+        schema: {
+          moveSpeed: { type: "number", default: 0.12 },
+          rotateSpeed: { type: "number", default: 2.0 },
+          deadzone: { type: "number", default: 0.15 },
+        },
+        init: function () {
+          this.rig = document.querySelector("#rig");
+          this.cam = document.querySelector("#mainCam");
+          this.leftX = 0;
+          this.leftY = 0;
+          this.rightX = 0;
+
+          // Joystick izquierdo: mover
+          document.querySelector("#leftHand").addEventListener(
+            "thumbstickmoved",
+            (evt) => {
+              this.leftX = evt.detail.x;
+              this.leftY = evt.detail.y;
+            }
+          );
+
+          // Joystick derecho: rotar
+          document.querySelector("#rightHand").addEventListener(
+            "thumbstickmoved",
+            (evt) => {
+              this.rightX = evt.detail.x;
+            }
+          );
+        },
+        tick: function () {
+          if (!this.rig || !this.cam) return;
+          const data = this.data;
+          const rigObj = this.rig.object3D;
+          const camObj = this.cam.object3D;
+
+          // Mover rig según orientación de la cámara
+          if (Math.abs(this.leftX) > data.deadzone || Math.abs(this.leftY) > data.deadzone) {
+            const forward = new THREE.Vector3();
+            camObj.getWorldDirection(forward); // dirección hacia donde mira la cámara
+            forward.y = 0;
+            forward.normalize();
+
+            const right = new THREE.Vector3();
+            right.crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+
+            rigObj.position.add(forward.multiplyScalar(this.leftY * data.moveSpeed));
+            rigObj.position.add(right.multiplyScalar(this.leftX * data.moveSpeed));
+          }
+
+          // Rotación del rig con joystick derecho
+          if (Math.abs(this.rightX) > data.deadzone) {
+            rigObj.rotation.y -= this.rightX * data.rotateSpeed * 0.05;
+          }
+        },
+      });
+
+      AFRAME.registerComponent("gaze-redirect", {
+        schema: {
+          url: { type: "string", default: "https://gabrielcarog.github.io/Museo/" },
+          duration: { type: "number", default: 3000 }
+        },
+        init: function () {
+          this.timer = null;
+          this.el.addEventListener("mouseenter", () => {
+            this.timer = setTimeout(() => {
+              window.location.href = this.data.url;
+            }, this.data.duration);
+          });
+          this.el.addEventListener("mouseleave", () => {
+            if (this.timer) clearTimeout(this.timer);
+          });
+        }
+      });
+    </script>
+
+    <style>
+      .hud {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-family: sans-serif;
+        font-size: 12px;
+        z-index: 9999;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="hud">
+      PC: WASD + mouse • VR: joystick izq = mover, der = girar • Mandos visibles
+    </div>
+
+    <a-scene>
+      <a-assets>
+        <img id="skyTexture" src="https://cdn.aframe.io/a-painter/images/sky.jpg"/>
+      </a-assets>
+
+      <a-sky src="#skyTexture"></a-sky>
+
+      <!-- Luces -->
+      <a-entity light="type: ambient; intensity: 1"></a-entity>
+      <a-entity light="type: directional; intensity: 1" position="2 4 3"></a-entity>
+
+      <!-- Escenario -->
+      <a-entity gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Escenario.glb)" scale="1.5 1.5 1.5" position="0 0 0"></a-entity>
+
+      <!-- Personajes -->
+      <a-entity id="capitan" gltf-model="url(https://cdn.jsdelivr.net/gh/GabrielCaroG/modelo3d@main/CapitanAnimacion.glb)" scale="1 1 1" position="-45 0 10" rotation="0 90 0" animation-mixer="clip: Armature; loop: repeat; timeScale: 0.5"></a-entity>
+      <a-entity id="dilan" gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Dilananimacion.glb)" scale="1 1 1" position="1 0 -10" animation-mixer="clip: Animation; loop: false; timeScale: 1"></a-entity>
+
+      <!-- RIG jugador -->
+      <a-entity id="rig" position="0 1.6 5" vr-controls>
+        <a-camera id="mainCam" wasd-controls look-controls>
+          <a-cursor fuse="true" fuse-timeout="3000" geometry="primitive:ring;radiusInner:0.01;radiusOuter:0.02" material="color:white; shader:flat"></a-cursor>
+        </a-camera>
+
+        <!-- Controladores visibles -->
+        <a-entity id="leftHand" meta-touch-controls="hand: left; model: true"></a-entity>
+        <a-entity id="rightHand" meta-touch-controls="hand: right; model: true"></a-entity>
+      </a-entity>
+
+      <!-- Portal interactivo -->
+      <a-circle class="interactivo" gaze-redirect url="https://gabrielcarog.github.io/Museo/" position="14.94 1.6 3.66" rotation="-90 0 0" radius="1" color="#00ffff" material="emissive:#00ffff;emissiveIntensity:1.5"></a-circle>
+    </a-scene>
+  </body>
+</html>
