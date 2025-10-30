@@ -2,12 +2,17 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Escena interactiva VR/PC</title>
+    <title>Escena VR interactiva con animaciones</title>
 
+    <!-- A-Frame y extras -->
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>body { margin: 0; }</style>
+
     <script>
+      // ====== CONTROLES VR Y PC ======
       AFRAME.registerComponent("vr-controls", {
         schema: {
           moveSpeed: { type: "number", default: 0.12 },
@@ -22,21 +27,15 @@
           this.rightX = 0;
 
           // Joystick izquierdo: mover
-          document.querySelector("#leftHand").addEventListener(
-            "thumbstickmoved",
-            (evt) => {
-              this.leftX = evt.detail.x;
-              this.leftY = evt.detail.y;
-            }
-          );
+          document.querySelector("#leftHand").addEventListener("thumbstickmoved", (evt) => {
+            this.leftX = evt.detail.x;
+            this.leftY = evt.detail.y;
+          });
 
           // Joystick derecho: rotar
-          document.querySelector("#rightHand").addEventListener(
-            "thumbstickmoved",
-            (evt) => {
-              this.rightX = evt.detail.x;
-            }
-          );
+          document.querySelector("#rightHand").addEventListener("thumbstickmoved", (evt) => {
+            this.rightX = evt.detail.x;
+          });
         },
         tick: function () {
           if (!this.rig || !this.cam) return;
@@ -44,32 +43,33 @@
           const rigObj = this.rig.object3D;
           const camObj = this.cam.object3D;
 
-          // Mover rig según orientación de la cámara
+          // Movimiento hacia la dirección de la cámara
           if (Math.abs(this.leftX) > data.deadzone || Math.abs(this.leftY) > data.deadzone) {
             const forward = new THREE.Vector3();
-            camObj.getWorldDirection(forward); // dirección hacia donde mira la cámara
+            camObj.getWorldDirection(forward);
             forward.y = 0;
             forward.normalize();
 
             const right = new THREE.Vector3();
             right.crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
 
+            // Movimiento no invertido
             rigObj.position.add(forward.multiplyScalar(this.leftY * data.moveSpeed));
             rigObj.position.add(right.multiplyScalar(this.leftX * data.moveSpeed));
           }
 
-          // Rotación del rig con joystick derecho
+          // Rotación del rig
           if (Math.abs(this.rightX) > data.deadzone) {
             rigObj.rotation.y -= this.rightX * data.rotateSpeed * 0.05;
           }
         },
       });
 
-      // --- Componente para mirar y redirigir ---
+      // ====== REDIRECCIÓN CON LA MIRADA ======
       AFRAME.registerComponent("gaze-redirect", {
         schema: {
-          url: { type: "string", default: "https://dylanpinilla.github.io/Museo/" },
-          duration: { type: "number", default: 3000 }
+          url: { type: "string", default: "https://gabrielcarog.github.io/Museo/" },
+          duration: { type: "number", default: 3000 },
         },
         init: function () {
           this.timer = null;
@@ -81,62 +81,120 @@
           this.el.addEventListener("mouseleave", () => {
             if (this.timer) clearTimeout(this.timer);
           });
+        },
+      });
+
+      // ====== ANIMACIONES Y REINICIO CADA 25 s ======
+      window.addEventListener("load", () => {
+        const posCapitan = { x: -45, y: 0, z: 10 };
+        const rotCapitan = { x: 0, y: 90, z: 0 };
+        const posDilan = { x: 1, y: 0, z: -10 };
+        const rotDilan = { x: 0, y: 0, z: 0 };
+
+        const capitanEl = document.getElementById("capitan");
+        const dilanEl = document.getElementById("dilan");
+
+        function aplicarAnimaciones() {
+          capitanEl.setAttribute("animation-mixer", "clip: Armature; loop: repeat; timeScale: 0.5");
+          capitanEl.setAttribute(
+            "animation",
+            "property: position; to: -10 0 10; dur: 16000; easing: linear; loop: false"
+          );
+          capitanEl.setAttribute(
+            "animation__rotar",
+            "property: rotation; to: 0 180 0; dur: 3000; easing: linear; delay: 13500; loop: false"
+          );
+
+          dilanEl.setAttribute("animation-mixer", "clip: Animation; loop: false; timeScale: 1");
+          dilanEl.setAttribute(
+            "animation__rotar",
+            "property: rotation; to: 0 -60 0; dur: 2000; easing: linear; delay: 9000; loop: false"
+          );
+          dilanEl.setAttribute(
+            "animation__mover",
+            "property: position; to: -3 0 -7; dur: 2000; easing: linear; delay: 9000; loop: false"
+          );
+          dilanEl.setAttribute(
+            "animation__mover_dos",
+            "property: position; from: -3 0 -7; to: 1 0 -10; dur: 2000; easing: linear; delay: 14000; loop: false"
+          );
         }
+
+        function resetAnimaciones() {
+          capitanEl.removeAttribute("animation-mixer");
+          dilanEl.removeAttribute("animation-mixer");
+          capitanEl.removeAttribute("animation");
+          capitanEl.removeAttribute("animation__rotar");
+          dilanEl.removeAttribute("animation__rotar");
+          dilanEl.removeAttribute("animation__mover");
+          dilanEl.removeAttribute("animation__mover_dos");
+
+          capitanEl.setAttribute("position", posCapitan);
+          capitanEl.setAttribute("rotation", rotCapitan);
+          dilanEl.setAttribute("position", posDilan);
+          dilanEl.setAttribute("rotation", rotDilan);
+        }
+
+        aplicarAnimaciones();
+        setInterval(() => {
+          resetAnimaciones();
+          setTimeout(aplicarAnimaciones, 60);
+        }, 25000);
       });
     </script>
-
-    <style>
-      .hud {
-        position: fixed;
-        left: 12px;
-        bottom: 12px;
-        background: rgba(0, 0, 0, 0.45);
-        color: #fff;
-        padding: 8px 10px;
-        border-radius: 6px;
-        font-family: sans-serif;
-        font-size: 12px;
-        z-index: 9999;
-      }
-    </style>
   </head>
 
   <body>
-    <div class="hud">
-      PC: WASD + mouse • VR: joystick izq = mover, der = girar • Mandos visibles
-    </div>
-
     <a-scene>
       <a-assets>
-        <img id="skyTexture" src="https://cdn.aframe.io/a-painter/images/sky.jpg"/>
+        <img id="skyTexture" src="https://cdn.aframe.io/a-painter/images/sky.jpg" />
       </a-assets>
 
-      <a-sky src="#skyTexture"></a-sky>
-
-      <!-- Luces -->
+      <a-sky id="background" src="#skyTexture" theta-length="90" radius="45"></a-sky>
       <a-entity light="type: ambient; intensity: 1"></a-entity>
       <a-entity light="type: directional; intensity: 1" position="2 4 3"></a-entity>
 
       <!-- Escenario -->
-      <a-entity gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Escenario.glb)" scale="1.5 1.5 1.5" position="0 0 0"></a-entity>
+      <a-entity gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Escenario.glb)"
+                scale="1.5 1.5 1.5" position="0 0 0"></a-entity>
 
       <!-- Personajes -->
-      <a-entity id="capitan" gltf-model="url(https://cdn.jsdelivr.net/gh/GabrielCaroG/modelo3d@main/CapitanAnimacion.glb)" scale="1 1 1" position="-45 0 10" rotation="0 90 0" animation-mixer="clip: Armature; loop: repeat; timeScale: 0.5"></a-entity>
-      <a-entity id="dilan" gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Dilananimacion.glb)" scale="1 1 1" position="1 0 -10" animation-mixer="clip: Animation; loop: false; timeScale: 1"></a-entity>
+      <a-entity id="capitan"
+                gltf-model="url(https://cdn.jsdelivr.net/gh/GabrielCaroG/modelo3d@main/CapitanAnimacion.glb)"
+                scale="1 1 1"
+                position="-45 0 10"
+                rotation="0 90 0"></a-entity>
 
-      <!-- RIG jugador -->
+      <a-entity id="dilan"
+                gltf-model="url(https://raw.githubusercontent.com/GabrielCaroG/modelo3d/main/Dilananimacion.glb)"
+                scale="1 1 1"
+                position="1 0 -10"></a-entity>
+
+      <!-- RIG jugador con cámara y mandos -->
       <a-entity id="rig" position="0 1.6 5" vr-controls>
         <a-camera id="mainCam" wasd-controls look-controls>
-          <a-cursor fuse="true" fuse-timeout="3000" geometry="primitive:ring;radiusInner:0.01;radiusOuter:0.02" material="color:white; shader:flat"></a-cursor>
+          <a-cursor fuse="true" fuse-timeout="3000"
+                    geometry="primitive:ring;radiusInner:0.01;radiusOuter:0.02"
+                    material="color:white; shader:flat"></a-cursor>
         </a-camera>
 
-        <!-- Controladores visibles -->
         <a-entity id="leftHand" meta-touch-controls="hand: left; model: true"></a-entity>
         <a-entity id="rightHand" meta-touch-controls="hand: right; model: true"></a-entity>
       </a-entity>
 
-      <!-- Portal interactivo -->
-      <a-circle class="interactivo" gaze-redirect url="https://dylanpinilla.github.io/Museo/" position="14.94 1.6 3.66" rotation="-90 0 0" radius="1" color="#00ffff" material="emissive:#00ffff;emissiveIntensity:1.5"></a-circle>
+      <!-- Portal reemplazado por círculo interactivo -->
+      <a-circle class="interactivo"
+                gaze-redirect
+                url="https://dylanpinilla.github.io/Museo/"
+                position="14.94 1.6 3.66"
+                rotation="-90 0 0"
+                radius="1"
+                color="#00ffff"
+                material="emissive:#00ffff; emissiveIntensity:1.5"></a-circle>
+
+      <!-- Luz del portal -->
+      <a-entity light="type: point; color: #00ffff; intensity: 2; distance: 5"
+                position="14.94 1.6 3.66"></a-entity>
     </a-scene>
   </body>
 </html>
