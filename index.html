@@ -51,9 +51,9 @@
             forward.normalize();
 
             const right = new THREE.Vector3();
-            right.crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-            // Movimiento no invertido
+            // Movimiento corregido (no invertido)
             rigObj.position.add(forward.multiplyScalar(this.leftY * data.moveSpeed));
             rigObj.position.add(right.multiplyScalar(this.leftX * data.moveSpeed));
           }
@@ -68,7 +68,7 @@
       // ====== REDIRECCIÓN CON LA MIRADA ======
       AFRAME.registerComponent("gaze-redirect", {
         schema: {
-          url: { type: "string", default: "https://gabrielcarog.github.io/Museo/" },
+          url: { type: "string", default: "https://dylanpinilla.github.io/Museo/" },
           duration: { type: "number", default: 3000 },
         },
         init: function () {
@@ -182,10 +182,9 @@
         <a-entity id="rightHand" meta-touch-controls="hand: right; model: true"></a-entity>
       </a-entity>
 
-      <!-- Portal reemplazado por círculo interactivo -->
+      <!-- Círculo interactivo (portal) -->
       <a-circle class="interactivo"
-                gaze-redirect
-                url="https://dylanpinilla.github.io/Museo/"
+                gaze-redirect="url: https://dylanpinilla.github.io/Museo/"
                 position="14.94 1.6 3.66"
                 rotation="-90 0 0"
                 radius="1"
