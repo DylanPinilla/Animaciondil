@@ -2,17 +2,41 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Escena VR interactiva con animaciones</title>
+    <title>Escena VR interactiva con animaciones + Joysticks</title>
 
     <!-- A-Frame y extras -->
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+    <!-- look-at (billboard para el texto) -->
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <!-- nipplejs para joysticks táctiles -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>body { margin: 0; }</style>
+    <style>
+      body { margin: 0; }
+      /* Contenedores de joystick (solo UI en móvil) */
+      #leftJoystick, #rightJoystick {
+        position: absolute;
+        bottom: 8vh;
+        width: 30vw;
+        height: 30vw;
+        max-width: 220px;
+        max-height: 220px;
+        touch-action: none; /* evita el scrolling al usar joystick */
+        z-index: 10;
+        pointer-events: auto;
+      }
+      #leftJoystick { left: 3vw; }
+      #rightJoystick { right: 3vw; }
+      /* Ocultar joysticks en escritorio (opcinal) */
+      @media (min-width: 900px) {
+        #leftJoystick, #rightJoystick { display: none; }
+      }
+    </style>
 
     <script>
-      // ====== CONTROLES VR Y PC ======
+      // ====== CONTROLES VR, PC Y JOYSTICKS TÁCTILES ======
       AFRAME.registerComponent("vr-controls", {
         schema: {
           moveSpeed: { type: "number", default: 0.12 },
@@ -26,17 +50,93 @@
           this.leftY = 0;
           this.rightX = 0;
 
-          // Joystick izquierdo: mover
-          document.querySelector("#leftHand").addEventListener("thumbstickmoved", (evt) => {
-            this.leftX = evt.detail.x;
-            this.leftY = evt.detail.y;
+          // Referencias a mandos (VR)
+          const leftHand = document.querySelector("#leftHand");
+          const rightHand = document.querySelector("#rightHand");
+
+          if (leftHand) {
+            leftHand.addEventListener("thumbstickmoved", (evt) => {
+              this.leftX = evt.detail.x;
+              this.leftY = evt.detail.y;
+            });
+            leftHand.addEventListener("thumbstickpressed", () => {});
+          }
+
+          if (rightHand) {
+            rightHand.addEventListener("thumbstickmoved", (evt) => {
+              this.rightX = evt.detail.x;
+            });
+          }
+
+          // === Joysticks táctiles (nipplejs) como fallback / en móvil ===
+          // Creamos los contenedores desde JS para que pueda integrarse fácilmente
+          this.setupTouchJoysticks();
+        },
+
+        setupTouchJoysticks: function () {
+          // Evitar ejecutar varias veces
+          if (this.joysticksSetup) return;
+          this.joysticksSetup = true;
+
+          // Crear contenedores si no existen (estan en el DOM)
+          let leftDiv = document.getElementById("leftJoystick");
+          let rightDiv = document.getElementById("rightJoystick");
+
+          if (!leftDiv) {
+            leftDiv = document.createElement("div");
+            leftDiv.id = "leftJoystick";
+            document.body.appendChild(leftDiv);
+          }
+          if (!rightDiv) {
+            rightDiv = document.createElement("div");
+            rightDiv.id = "rightJoystick";
+            document.body.appendChild(rightDiv);
+          }
+
+          // Inicializar nipplejs
+          const optionsLeft = {
+            zone: leftDiv,
+            mode: "static",
+            position: { left: "50%", top: "50%" },
+            color: "#00ffff",
+            size: 120,
+            restOpacity: 0.6,
+          };
+
+          const optionsRight = {
+            zone: rightDiv,
+            mode: "static",
+            position: { left: "50%", top: "50%" },
+            color: "#ff9900",
+            size: 100,
+            restOpacity: 0.6,
+          };
+
+          // managers
+          this.leftManager = nipplejs.create(optionsLeft);
+          this.rightManager = nipplejs.create(optionsRight);
+
+          // left joystick: mueve (x,y)
+          this.leftManager.on("move", (evt, data) => {
+            if (!data || !data.vector) return;
+            // vector.x, vector.y entre -1 y 1
+            this.leftX = data.vector.x; // lateral
+            this.leftY = -data.vector.y; // invertimos Y para que empuje hacia adelante cuando se empuje arriba
+          });
+          this.leftManager.on("end", () => {
+            this.leftX = 0; this.leftY = 0;
           });
 
-          // Joystick derecho: rotar
-          document.querySelector("#rightHand").addEventListener("thumbstickmoved", (evt) => {
-            this.rightX = evt.detail.x;
+          // right joystick: rotación (solo eje X)
+          this.rightManager.on("move", (evt, data) => {
+            if (!data || !data.vector) return;
+            this.rightX = data.vector.x;
+          });
+          this.rightManager.on("end", () => {
+            this.rightX = 0;
           });
         },
+
         tick: function () {
           if (!this.rig || !this.cam) return;
           const data = this.data;
@@ -53,12 +153,14 @@
             const right = new THREE.Vector3();
             right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-            // Movimiento corregido (no invertido)
-            rigObj.position.add(forward.multiplyScalar(this.leftY * data.moveSpeed));
-            rigObj.position.add(right.multiplyScalar(this.leftX * data.moveSpeed));
+            // Usamos clones porque multiplyScalar modifica el vector
+            const moveForward = forward.clone().multiplyScalar(this.leftY * data.moveSpeed);
+            const moveRight = right.clone().multiplyScalar(this.leftX * data.moveSpeed);
+            rigObj.position.add(moveForward);
+            rigObj.position.add(moveRight);
           }
 
-          // Rotación del rig
+          // Rotación del rig (usamos rightX)
           if (Math.abs(this.rightX) > data.deadzone) {
             rigObj.rotation.y -= this.rightX * data.rotateSpeed * 0.05;
           }
@@ -145,6 +247,10 @@
   </head>
 
   <body>
+    <!-- Contenedores para joysticks táctiles (se crearán de todos modos desde JS si no existen) -->
+    <div id="leftJoystick"></div>
+    <div id="rightJoystick"></div>
+    
     <a-scene>
       <a-assets>
         <img id="skyTexture" src="https://cdn.aframe.io/a-painter/images/sky.jpg" />
@@ -183,7 +289,7 @@
       </a-entity>
 
       <!-- Círculo interactivo (portal) -->
-      <a-circle class="interactivo"
+      <a-circle id="portalCircle" class="interactivo"
                 gaze-redirect="url: https://dylanpinilla.github.io/Museo/"
                 position="14.94 1.6 3.66"
                 rotation="-90 0 0"
@@ -191,10 +297,18 @@
                 color="#00ffff"
                 material="emissive:#00ffff; emissiveIntensity:1.5"></a-circle>
 
+      <!-- Texto encima del portal (siempre mira a la cámara) -->
+      <a-entity id="portalText"
+                position="14.94 2.4 3.66"
+                look-at="#mainCam"
+                text="value: Mire 5 segundos el círculo para volver al museo; align: center; wrapCount: 24; width: 2;"
+                geometry="primitive: plane; height: 0; width: 0"
+                >
+      </a-entity>
+
       <!-- Luz del portal -->
       <a-entity light="type: point; color: #00ffff; intensity: 2; distance: 5"
                 position="14.94 1.6 3.66"></a-entity>
     </a-scene>
   </body>
 </html>
-
